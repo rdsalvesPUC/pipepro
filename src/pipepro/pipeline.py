@@ -3,6 +3,7 @@ from typing import Any, Callable, Iterable
 
 from .context import Context
 from .events import Listener
+from .registry import registry
 from .step import Retry, Step, StopPipeline, Timed
 from .steps import Filter, Rule, Transform, Validate
 
@@ -50,6 +51,12 @@ class Pipeline(Step):
     def builder(name: str = "pipeline") -> "PipelineBuilder":
         return PipelineBuilder(name)
 
+    @classmethod
+    def from_config(cls, config: Iterable[dict[str, Any]], name: str = "pipeline") -> "Pipeline":
+        """Ex.: [{"step": "rename", "mapping": {"a": "b"}}, {"step": "select", "fields": ["b"]}]"""
+        steps = [registry.create(spec["step"], **{k: v for k, v in spec.items() if k != "step"}) for spec in config]
+        return cls(steps, name)
+
 
 class PipelineBuilder:
     """Builder: API fluente para montar um Pipeline passo a passo."""
@@ -62,6 +69,9 @@ class PipelineBuilder:
     def add(self, step: Step) -> "PipelineBuilder":
         self._steps.append(step)
         return self
+
+    def use(self, name: str, **options: Any) -> "PipelineBuilder":
+        return self.add(registry.create(name, **options))
 
     def validate(self, *rules: Rule, on_error: str = "raise") -> "PipelineBuilder":
         return self.add(Validate(*rules, on_error=on_error))

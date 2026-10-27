@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Iterable
 
 from .context import Context
+from .registry import register
 from .step import Step, StopPipeline
 
 Record = dict[str, Any]
@@ -111,6 +112,7 @@ class Filter(Step):
         return [record for record in data if self.predicate(record)]
 
 
+@register("rename")
 class Rename(Step):
     def __init__(self, mapping: dict[str, str], name: str | None = None):
         super().__init__(name)
@@ -120,6 +122,7 @@ class Rename(Step):
         return [{self.mapping.get(k, k): v for k, v in record.items()} for record in data]
 
 
+@register("select")
 class Select(Step):
     def __init__(self, fields: Iterable[str], name: str | None = None):
         super().__init__(name)
