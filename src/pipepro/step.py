@@ -1,4 +1,4 @@
-"""Step base (Chain of Responsibility)."""
+"""Step base (Chain of Responsibility + Template Method)."""
 from typing import Any
 
 from .context import Context
@@ -22,12 +22,21 @@ class Step:
         self._next = step
         return step
 
+    # Template Method: o esqueleto é fixo; before/process/after são os ganchos.
     def handle(self, ctx: Context) -> None:
+        self.before(ctx)
         ctx.data = self.process(ctx.data, ctx)
+        self.after(ctx)
 
         if self._next is None:
             return
         self._next.handle(ctx)
 
+    def before(self, ctx: Context) -> None:
+        pass
+
     def process(self, data: Any, ctx: Context) -> Any:
         raise NotImplementedError
+
+    def after(self, ctx: Context) -> None:
+        pass
