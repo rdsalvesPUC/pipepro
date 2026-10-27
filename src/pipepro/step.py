@@ -1,4 +1,5 @@
-"""Step base (Chain of Responsibility + Template Method + Command)."""
+"""Step base (Chain of Responsibility + Template Method + Command) e decorators."""
+from time import perf_counter
 from typing import Any
 
 from .context import Context
@@ -60,3 +61,54 @@ class Step:
 
     def undo(self, ctx: Context) -> None:
         pass
+
+
+class StepDecorator(Step):
+    """Decorator: envolve um Step e acrescenta comportamento sem alterá-lo."""
+
+    def __init__(self, inner: Step, name: str | None = None):
+        super().__init__(name or inner.name)
+        self.inner = inner
+
+    def before(self, ctx: Context) -> None:
+        self.inner.before(ctx)
+
+    def process(self, data: Any, ctx: Context) -> Any:
+        return self.inner.process(data, ctx)
+
+    def after(self, ctx: Context) -> None:
+        self.inner.after(ctx)
+
+    def undo(self, ctx: Context) -> None:
+        self.inner.undo(ctx)
+
+
+class Retry(StepDecorator):
+    def __init__(self, inner: Step, attempts: int = 3, exceptions: tuple[type[Exception], ...] = (Exception,)):
+        if attempts < 1:
+            raise ValueError("attempts deve ser >= 1")
+        super().__init__(inner)
+        self.attempts = attempts
+        self.exceptions = exceptions
+
+    def process(self, data: Any, ctx: Context) -> Any:
+        for attempt in range(1, self.attempts + 1):
+            try:
+                return self.inner.process(data, ctx)
+            except StopPipeline:
+                raise
+            except self.exceptions as exc:
+                if attempt == self.attempts:
+                    raise
+                ctx.emit("step_retry", self.name, attempt=attempt, error=exc)
+
+
+class Timed(StepDecorator):
+    """Guarda a duração em ctx.meta["timings"][nome]."""
+
+    def process(self, data: Any, ctx: Context) -> Any:
+        start = perf_counter()
+        try:
+            return self.inner.process(data, ctx)
+        finally:
+            ctx.meta.setdefault("timings", {})[self.name] = perf_counter() - start

@@ -3,7 +3,7 @@ from typing import Any, Callable, Iterable
 
 from .context import Context
 from .events import Listener
-from .step import Step, StopPipeline
+from .step import Retry, Step, StopPipeline, Timed
 from .steps import Filter, Rule, Transform, Validate
 
 
@@ -72,9 +72,23 @@ class PipelineBuilder:
     def filter(self, predicate: Callable, name: str | None = None) -> "PipelineBuilder":
         return self.add(Filter(predicate, name))
 
+    def retry(self, attempts: int = 3) -> "PipelineBuilder":
+        """Aplica Retry ao último step adicionado."""
+        return self._wrap_last(lambda step: Retry(step, attempts))
+
+    def timed(self) -> "PipelineBuilder":
+        """Aplica Timed ao último step adicionado."""
+        return self._wrap_last(Timed)
+
     def on(self, listener: Listener) -> "PipelineBuilder":
         self._listeners.append(listener)
         return self
 
     def build(self) -> Pipeline:
         return Pipeline(self._steps, self._name, self._listeners)
+
+    def _wrap_last(self, wrap: Callable[[Step], Step]) -> "PipelineBuilder":
+        if not self._steps:
+            raise ValueError("adicione um step antes de decorá-lo")
+        self._steps[-1] = wrap(self._steps[-1])
+        return self
