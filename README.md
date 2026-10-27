@@ -121,3 +121,20 @@ class Cpf(Rule):
 **Novo comportamento em volta de um step:** herde de `StepDecorator` e sobrescreva `process`.
 
 **Novo destino de auditoria:** escreva uma função `def meu_listener(event): ...`.
+
+## Padrões de projeto
+
+| # | Padrão | Onde | Problema que resolve |
+|---|--------|------|----------------------|
+| 1 | Builder | `PipelineBuilder` em [pipeline.py](src/pipepro/pipeline.py) | Monta pipelines com muitas etapas opcionais numa API legível, sem um construtor gigante |
+| 2 | Chain of Responsibility | `Step.set_next` / `Step.handle` em [step.py](src/pipepro/step.py) | Cada etapa só conhece a próxima e decide se o fluxo continua (`StopPipeline`) |
+| 3 | Template Method | `Step.handle` em [step.py](src/pipepro/step.py) | O ciclo de vida (eventos, before, process, after, encadeamento, undo) é fixo; o cliente só implementa os ganchos |
+| 4 | Strategy | `Rule` e suas implementações em [steps.py](src/pipepro/steps.py) | `Validate` aceita qualquer regra trocável, sem `if`s por tipo de validação |
+| 5 | Command | `Step.undo` / `CollectInto` | Cada etapa sabe desfazer o próprio efeito colateral durante o rollback |
+| 6 | Memento | `Context.save`/`restore` + `Snapshot` em [context.py](src/pipepro/context.py) | Restaura os dados ao estado anterior sem expor como o estado é guardado |
+| 7 | Observer | `Context.emit`, `Event` e `AuditTrail` em [events.py](src/pipepro/events.py) | Auditoria e monitoramento plugáveis, sem acoplar ao núcleo |
+| 8 | Decorator | `StepDecorator`, `Retry`, `Timed` em [step.py](src/pipepro/step.py) | Acrescenta retry e medição a qualquer step sem herança combinatória |
+| 9 | Composite | `Pipeline(Step)` em [pipeline.py](src/pipepro/pipeline.py) | Um pipeline é usado como etapa de outro, de forma uniforme |
+| 10 | Factory / Registry | `StepRegistry` em [registry.py](src/pipepro/registry.py) | Cria steps pelo nome (`use`, `from_config`), inclusive os do cliente |
+
+O trabalho exige 8 padrões; os outros dois ficam de reserva.
