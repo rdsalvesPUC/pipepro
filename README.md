@@ -138,3 +138,12 @@ class Cpf(Rule):
 | 10 | Factory / Registry | `StepRegistry` em [registry.py](src/pipepro/registry.py) | Cria steps pelo nome (`use`, `from_config`), inclusive os do cliente |
 
 O trabalho exige 8 padrões; os outros dois ficam de reserva.
+
+## Testes
+
+```bash
+python -m unittest discover -s tests
+```
+
+Para rodar a partir do código-fonte sem instalar, defina `PYTHONPATH=src` antes, ou
+instale com `pip install -e .`.
