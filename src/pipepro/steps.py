@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Iterable
 
+from .context import Context
 from .step import Step, StopPipeline
 
 Record = dict[str, Any]
@@ -126,3 +127,24 @@ class Select(Step):
 
     def process(self, data, ctx):
         return [{f: record[f] for f in self.fields if f in record} for record in data]
+
+
+class CollectInto(Step):
+    """Copia os registros para uma lista externa; `undo` os remove (Command)."""
+
+    # ponytail: guarda o estado da última execução na instância; não use o mesmo
+    # CollectInto em execuções simultâneas.
+    def __init__(self, target: list, name: str | None = None):
+        super().__init__(name)
+        self.target = target
+        self._added = 0
+
+    def process(self, data, ctx: Context):
+        items = list(data)
+        self.target.extend(items)
+        self._added = len(items)
+        return items
+
+    def undo(self, ctx):
+        del self.target[len(self.target) - self._added:]
+        self._added = 0

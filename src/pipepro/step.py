@@ -1,4 +1,4 @@
-"""Step base (Chain of Responsibility + Template Method)."""
+"""Step base (Chain of Responsibility + Template Method + Command)."""
 from typing import Any
 
 from .context import Context
@@ -9,7 +9,8 @@ class StopPipeline(Exception):
 
 
 class Step:
-    """Uma etapa do pipeline. Subclasses implementam `process`."""
+    """Uma etapa do pipeline. Subclasses implementam `process` e, se tiverem
+    efeitos colaterais, `undo`."""
 
     name: str | None = None
 
@@ -22,7 +23,7 @@ class Step:
         self._next = step
         return step
 
-    # Template Method: o esqueleto é fixo; before/process/after são os ganchos.
+    # Template Method: o esqueleto é fixo; before/process/after/undo são os ganchos.
     def handle(self, ctx: Context) -> None:
         ctx.emit("step_started", self.name)
         try:
@@ -38,7 +39,15 @@ class Step:
 
         if self._next is None:
             return
-        self._next.handle(ctx)
+        try:
+            self._next.handle(ctx)
+        except StopPipeline:
+            raise
+        except Exception:
+            # Command: na volta da cadeia, cada etapa concluída desfaz o próprio efeito.
+            self.undo(ctx)
+            ctx.emit("step_undone", self.name)
+            raise
 
     def before(self, ctx: Context) -> None:
         pass
@@ -47,4 +56,7 @@ class Step:
         raise NotImplementedError
 
     def after(self, ctx: Context) -> None:
+        pass
+
+    def undo(self, ctx: Context) -> None:
         pass
