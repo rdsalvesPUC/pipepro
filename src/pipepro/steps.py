@@ -1,9 +1,93 @@
-"""Steps prontos para uso. Os dados são uma lista de registros (dicts)."""
+"""Steps e regras prontos para uso. Os dados são uma lista de registros (dicts)."""
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Iterable
 
-from .step import Step
+from .step import Step, StopPipeline
 
 Record = dict[str, Any]
+
+
+# --- Strategy: regras de validação intercambiáveis ---------------------------
+
+class Rule(ABC):
+    @abstractmethod
+    def check(self, record: Record) -> str | None:
+        """Retorna uma mensagem de erro, ou None se o registro é válido."""
+
+
+class Required(Rule):
+    def __init__(self, *fields: str):
+        self.fields = fields
+
+    def check(self, record):
+        missing = [f for f in self.fields if record.get(f) in (None, "")]
+        return f"campos obrigatórios ausentes: {missing}" if missing else None
+
+
+class TypeOf(Rule):
+    def __init__(self, field: str, type_: type | tuple[type, ...]):
+        self.field, self.type_ = field, type_
+
+    def check(self, record):
+        if self.field in record and not isinstance(record[self.field], self.type_):
+            return f"{self.field} deveria ser {self.type_}"
+        return None
+
+
+class Range(Rule):
+    def __init__(self, field: str, min: float | None = None, max: float | None = None):
+        self.field, self.min, self.max = field, min, max
+
+    def check(self, record):
+        value = record.get(self.field)
+        if value is None:
+            return None
+        if (self.min is not None and value < self.min) or (self.max is not None and value > self.max):
+            return f"{self.field}={value} fora de [{self.min}, {self.max}]"
+        return None
+
+
+class Check(Rule):
+    """Adapta uma função qualquer como regra."""
+
+    def __init__(self, predicate: Callable[[Record], bool], message: str):
+        self.predicate, self.message = predicate, message
+
+    def check(self, record):
+        return None if self.predicate(record) else self.message
+
+
+class ValidationError(Exception):
+    def __init__(self, errors: list[tuple[int, list[str]]]):
+        self.errors = errors
+        super().__init__(f"{len(errors)} registro(s) inválido(s): {errors[:3]}")
+
+
+class Validate(Step):
+    """on_error: "raise" (falha e faz rollback), "drop" (descarta inválidos) ou "stop" (interrompe)."""
+
+    def __init__(self, *rules: Rule, on_error: str = "raise", name: str | None = None):
+        if on_error not in ("raise", "drop", "stop"):
+            raise ValueError(f"on_error inválido: {on_error!r}")
+        super().__init__(name)
+        self.rules = rules
+        self.on_error = on_error
+
+    def process(self, data, ctx):
+        valid, errors = [], []
+        for i, record in enumerate(data):
+            problems = [msg for rule in self.rules if (msg := rule.check(record))]
+            if problems:
+                errors.append((i, problems))
+            else:
+                valid.append(record)
+        if errors:
+            ctx.meta.setdefault("invalid", []).extend(errors)
+            if self.on_error == "raise":
+                raise ValidationError(errors)
+            if self.on_error == "stop":
+                raise StopPipeline(f"{len(errors)} registro(s) inválido(s)")
+        return valid
 
 
 # --- Transformação e filtro (a função recebida é a estratégia) ---------------
