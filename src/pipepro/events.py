@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 @dataclass(frozen=True)
 class Event:
-    name: str  # step_started, step_finished, step_failed, pipeline_stopped
+    name: str  # step_started, step_finished, step_failed, rolled_back, pipeline_stopped
     step: str
     info: dict[str, Any] = field(default_factory=dict)
 

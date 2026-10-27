@@ -1,7 +1,17 @@
-"""Estado que percorre o pipeline."""
+"""Estado que percorre o pipeline, com Memento para rollback."""
+from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .events import Event, Listener
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """Memento: cópia opaca do estado do Context num instante."""
+
+    _data: Any
+    _meta: dict
 
 
 class Context:
@@ -16,3 +26,10 @@ class Context:
         event = Event(name, step, info)
         for listener in self._listeners:
             listener(event)
+
+    def save(self) -> Snapshot:
+        return Snapshot(deepcopy(self.data), deepcopy(self.meta))
+
+    def restore(self, snapshot: Snapshot) -> None:
+        self.data = deepcopy(snapshot._data)
+        self.meta = deepcopy(snapshot._meta)

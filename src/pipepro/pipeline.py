@@ -1,4 +1,4 @@
-"""Pipeline (Composite) e PipelineBuilder (Builder)."""
+"""Pipeline (Composite + Memento) e PipelineBuilder (Builder)."""
 from typing import Any, Callable, Iterable
 
 from .context import Context
@@ -23,11 +23,20 @@ class Pipeline(Step):
         self.steps[-1].set_next(None)
 
     def process(self, data: Any, ctx: Context) -> Any:
-        self.steps[0].handle(ctx)
+        snapshot = ctx.save()  # Memento: o pipeline é o caretaker
+        try:
+            self.steps[0].handle(ctx)
+        except StopPipeline:
+            raise
+        except Exception:
+            ctx.restore(snapshot)
+            ctx.emit("rolled_back", self.name)
+            raise
         return ctx.data
 
     def run(self, data: Any, listeners: Iterable[Listener] = ()) -> Context:
-        """Executa e devolve o Context (data, meta, stopped, stop_reason)."""
+        """Executa e devolve o Context (data, meta, stopped, stop_reason).
+        Em caso de erro, desfaz tudo e relança a exceção."""
         ctx = Context(data, [*self.listeners, *listeners])
         try:
             self.handle(ctx)

@@ -5,7 +5,7 @@ from .context import Context
 
 
 class StopPipeline(Exception):
-    """Interrompe o pipeline sem erro: os dados ficam como estão."""
+    """Interrompe o pipeline sem erro: nada é desfeito, os dados ficam como estão."""
 
 
 class Step:
