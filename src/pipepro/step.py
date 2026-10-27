@@ -24,9 +24,17 @@ class Step:
 
     # Template Method: o esqueleto é fixo; before/process/after são os ganchos.
     def handle(self, ctx: Context) -> None:
-        self.before(ctx)
-        ctx.data = self.process(ctx.data, ctx)
-        self.after(ctx)
+        ctx.emit("step_started", self.name)
+        try:
+            self.before(ctx)
+            ctx.data = self.process(ctx.data, ctx)
+            self.after(ctx)
+        except StopPipeline:
+            raise
+        except Exception as exc:
+            ctx.emit("step_failed", self.name, error=exc)
+            raise
+        ctx.emit("step_finished", self.name)
 
         if self._next is None:
             return
