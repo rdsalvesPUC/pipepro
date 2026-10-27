@@ -1,4 +1,4 @@
-"""Pipeline e PipelineBuilder (Builder)."""
+"""Pipeline (Composite) e PipelineBuilder (Builder)."""
 from typing import Any, Callable, Iterable
 
 from .context import Context
@@ -7,11 +7,13 @@ from .step import Step, StopPipeline
 from .steps import Filter, Rule, Transform, Validate
 
 
-class Pipeline:
+class Pipeline(Step):
+    """Composite: um Pipeline é um Step, então pode ser usado dentro de outro."""
+
     # ponytail: os steps são encadeados in place; não reutilize a mesma instância
     # de Step em dois pipelines.
     def __init__(self, steps: Iterable[Step], name: str = "pipeline", listeners: Iterable[Listener] = ()):
-        self.name = name
+        super().__init__(name)
         self.steps = list(steps)
         if not self.steps:
             raise ValueError("um pipeline precisa de pelo menos um step")
@@ -20,11 +22,15 @@ class Pipeline:
             current.set_next(following)
         self.steps[-1].set_next(None)
 
+    def process(self, data: Any, ctx: Context) -> Any:
+        self.steps[0].handle(ctx)
+        return ctx.data
+
     def run(self, data: Any, listeners: Iterable[Listener] = ()) -> Context:
         """Executa e devolve o Context (data, meta, stopped, stop_reason)."""
         ctx = Context(data, [*self.listeners, *listeners])
         try:
-            self.steps[0].handle(ctx)
+            self.handle(ctx)
         except StopPipeline as stop:
             ctx.stopped = True
             ctx.stop_reason = str(stop) or None
